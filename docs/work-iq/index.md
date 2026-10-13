@@ -4,7 +4,7 @@ description: Learn how Work IQ provides production-ready workplace intelligence 
 author: erikadoyle
 ms.author: edoyle
 ms.localizationpriority: medium
-ms.date: 09/25/2026
+ms.date: 10/12/2026
 ms.topic: overview
 ---
 
@@ -32,7 +32,7 @@ In addition to productivity data from Microsoft 365 applications, Work IQ also i
 
 Tools are optimized for fast, composable actions. A compact set of generic tools and skills lets agents reason, retrieve data, and act across Microsoft 365 through a simplified, agent-friendly surface with centralized governance.
 
-The [Work IQ MCP](/microsoft-copilot-studio/use-work-iq) collapses hundreds of operations into just 10 generic tools that provide direct access to Microsoft 365 data (mail, calendar, files, people, chat, and sites) and the ability to act on that data. These tools function as simple verbs (such as fetch, create, and update), while resource paths define what the agent is working with. This separation keeps the surface area small while remaining flexible and extensible as new data sources and scenarios emerge.
+The [Work IQ MCP](mcp/overview.md) collapses hundreds of operations into a compact set of generic tools that provide direct access to Microsoft 365 data (mail, calendar, files, people, chat, and sites) and the ability to act on that data. These tools function as simple verbs (such as fetch, create, and update), while resource paths define what the agent is working with. This separation keeps the surface area small while remaining flexible and extensible as new data sources and scenarios emerge. Available tools depend on the supported release and caller; use MCP `tools/list` to discover your connection's toolset.
 
 A key capability of Work IQ allows agents to dynamically discover how data is structured at runtime. Instead of relying on predefined models or integrations, agents can understand what data exists, how it's organized, and how to interact with it as needed - turning every data source into a self-describing interface.
 

@@ -5,7 +5,7 @@ author: jasonjoh
 ms.author: jasonjoh
 ms.topic: reference
 ms.localizationpriority: medium
-ms.date: 08/20/2026
+ms.date: 10/12/2026
 ---
 
 <!-- markdownlint-disable MD024 -->
@@ -13,13 +13,19 @@ ms.date: 08/20/2026
 
 # Work IQ MCP tool reference
 
-The Work IQ MCP server exposes 10 tools through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). This article provides a reference for each tool, including its purpose, parameters, and usage examples.
+This article describes the tools exposed by the Work IQ MCP server through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io), including their purposes, parameters, and usage examples.
+
+Tool availability and advertised schemas can vary by supported release and caller. Use MCP `tools/list`, following any `nextCursor` values, to discover the complete toolset for your connection. Use the advertised `inputSchema` when constructing a request. The `retrieve` tool and some discovery options are available only to enabled audiences; their presence in this reference doesn't guarantee availability in every tenant.
 
 Work IQ MCP uses Microsoft Entra authentication and the signed-in user's Microsoft 365 permissions when its tools access Microsoft Graph resource paths. A separate tenant policy layer evaluates each tool request and blocks mutation operations by default. Administrators can enable supported create, update, delete, and action requests through tenant policy. For details, see [Policy governance for Work IQ MCP](policy-governance-mcp.md).
+
+Unless an example explicitly includes `content` or `structuredContent`, its response shows the payload inside `structuredContent`, not the complete MCP tool result. Text-only responses are identified in their tool sections. Check the tool result's `isError` flag before treating a response as successful; an error doesn't necessarily use the success payload's shape.
 
 ## Entity tools
 
 Entity tools provide CRUD operations and actions on Microsoft 365 resources. These tools operate on relative resource paths that map to [Microsoft Graph](/graph/overview) endpoints.
+
+For `create_entity`, `update_entity`, and `do_action`, a body such as `"jsonBody": {"subject": "Hello world!"}` can also be supplied as `"jsonBody": "{\"subject\":\"Hello world!\"}"`. Both forms represent the same entity or action body. Use the form permitted by your client's advertised input schema.
 
 ### fetch
 
@@ -150,7 +156,7 @@ A successful response exposes the following properties through the MCP `structur
 
 ##### Request
 
-[▶ Open this example in the Interactive Demo](https://aka.ms/copilot.dev?page=%2Fwork-iq%2Fmcp&server=workiq-remote&tool=fetch_blob&args=%7B%22path%22%3A%22%2Fme%2Fphoto%2F%24value%22%7D)
+[▶ Open this example in the Interactive Demo](https://aka.ms/copilot.dev?page=%2Fwork-iq%2Fmcp&server=workiq-remote&tool=fetch_blob&args=%7B%22path%22%3A%22%2Fme%2Fdrive%2Fitems%2F01ABCDEF%2Fcontent%22%7D&json=false&mode=demo)
 
 ```json
 {
@@ -189,7 +195,7 @@ Creates a new entity in a collection.
 | Parameter   | Type   | Required | Description                                                                                                              |
 |-------------|--------|----------|--------------------------------------------------------------------------------------------------------------------------|
 | `parentUrl` | string | Yes      | The relative resource path for the collection (for example, `/me/events`, `/me/messages`).                               |
-| `jsonBody`  | string | Yes      | The entity data to create, matching the resource schema. This property must be a JSON-encoded string, not a JSON object. |
+| `jsonBody`  | object or string | Yes | The entity data to create, matching the resource schema. Supply a JSON object or a JSON-encoded string. |
 | `agentId`   | string | No       | Reserved for future use.                                                                                                 |
 
 #### Response
@@ -214,7 +220,9 @@ A successful response contains an object in the `structuredContent` property wit
     "name": "create_entity",
     "arguments": {
       "parentUrl": "/me/messages",
-      "jsonBody": "{ \"subject\": \"Hello world!\" }"
+      "jsonBody": {
+        "subject": "Hello world!"
+      }
     }
   }
 }
@@ -274,7 +282,8 @@ Updates an existing entity.
 | Parameter   | Type   | Required | Description                                                                                                              |
 |-------------|--------|----------|--------------------------------------------------------------------------------------------------------------------------|
 | `entityUrl` | string | Yes      | The relative path to the entity (for example, `/me/messages/{message-id}`).                                              |
-| `jsonBody`  | string | Yes      | The entity data to create, matching the resource schema. This property must be a JSON-encoded string, not a JSON object. |
+| `jsonBody`  | object or string | Yes | The entity data to update, matching the resource schema. Supply a JSON object or a JSON-encoded string. |
+| `headers` | object | No | Optional request headers, when advertised. If the operation schema declares `If-Match`, supply the `@odata.etag` from the latest read of the same entity. |
 | `agentId`   | string | No       | Reserved for future use.                                                                                                 |
 
 #### Response
@@ -299,7 +308,9 @@ A successful response contains an object in the `structuredContent` property wit
     "name": "update_entity",
     "arguments": {
       "entityUrl": "/me/messages/AAMkADk0...",
-      "jsonBody": "{ \"subject\": \"Updated: Hello world!\" }"
+      "jsonBody": {
+        "subject": "Updated: Hello world!"
+      }
     }
   }
 }
@@ -359,7 +370,8 @@ Deletes an entity.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `entityUrl` | string | Yes | The relative resource path to the entity to delete (for example, `/me/messages/{id}`) |
-| `agentId` | string | No | The ID of a specific agent to route the question to. If omitted, defaults to the built-in Microsoft 365 Copilot agent. |
+| `headers` | object | No | Optional request headers, when advertised. If the operation schema declares `If-Match`, supply the `@odata.etag` from the latest read of the same entity. |
+| `agentId` | string | No | Reserved for future use; currently ignored. This parameter doesn't select an agent for deletion. |
 
 #### Response
 
@@ -402,8 +414,10 @@ Executes a side-effect action such as sending mail, copying, or moving items.
 | Parameter   | Type   | Required | Description                                                                                                |
 |-------------|--------|----------|------------------------------------------------------------------------------------------------------------|
 | `actionUrl` | string | Yes      | The relative path for the action (for example, `/me/messages/{message-id}/send`).                          |
-| `jsonBody`  | string | No       | The JSON body for the action, if required. This property must be a JSON-encoded string, not a JSON object. |
+| `jsonBody`  | object or string | No | The body for the action, if required by its schema. Supply a JSON object or a JSON-encoded string. |
 | `agentId`   | string | No       | Reserved for future use.                                                                                   |
+
+Some advertised schemas require the `jsonBody` argument even when the action doesn't require a body. In that case, supply `null`. The example below uses an empty object.
 
 #### Response
 
@@ -426,7 +440,8 @@ A successful response contains an object in the `structuredContent` property wit
   "params": {
     "name": "do_action",
     "arguments": {
-      "actionUrl": "/me/messages/AAMkADk0.../send"
+      "actionUrl": "/me/messages/AAMkADk0.../send",
+      "jsonBody": {}
     }
   }
 }
@@ -444,13 +459,16 @@ A successful response contains an object in the `structuredContent` property wit
 
 ### call_function
 
-Calls a Microsoft Graph function to compute derived data such as schedules, deltas, or search results.
+Calls a read-only function to compute derived data, such as calendar deltas or reminders.
+
+Graph functions use GET. For a POST operation such as `/search/query`, use `do_action` with the operation's request body instead.
 
 #### Parameters
 
 | Parameter     | Type   | Required | Description                                                           |
 |---------------|--------|----------|-----------------------------------------------------------------------|
-| `functionUrl` | string | Yes      | The relative path for the function (for example, `/me/calendarview`). |
+| `functionUrl` | string | Yes | The relative path for a supported read-only function (for example, `/me/calendarView/delta`), including required query parameters. |
+| `jsonBody` | object or string | No | Optional structured parameters for a provider function. Available only when advertised for the caller; supply a JSON object or JSON-encoded string according to the function schema. |
 | `agentId`     | string | No       | Reserved for future use.                                              |
 
 #### Response
@@ -466,7 +484,7 @@ A successful response contains an object in the `structuredContent` property wit
 
 ##### Request
 
-[▶ Open this example in the Interactive Demo](https://aka.ms/copilot.dev?page=%2Fwork-iq%2Fmcp&server=workiq-remote&tool=call_function&args=%7B%22functionUrl%22%3A%22%2Fme%2FcalendarView%3Fstartdatetime%3D2026-06-01T17%3A51%3A49.607Z%26enddatetime%3D2026-06-08T17%3A51%3A49.607Z%22%7D)
+[▶ Open this example in the Interactive Demo](https://aka.ms/copilot.dev?page=%2Fwork-iq%2Fmcp&server=workiq-remote&tool=call_function&args=%7B%22functionUrl%22%3A%22%2Fme%2FcalendarView%2Fdelta%3FstartDateTime%3D2026-06-01T00%3A00%3A00Z%26endDateTime%3D2026-06-08T00%3A00%3A00Z%22%7D&json=false&mode=demo)
 
 ```json
 {
@@ -474,7 +492,7 @@ A successful response contains an object in the `structuredContent` property wit
   "params": {
     "name": "call_function",
     "arguments": {
-      "parentUrl": "/me/calendarView?startdatetime=2026-06-01T17:51:49.607Z&enddatetime=2026-06-08T17:51:49.607Z"
+      "functionUrl": "/me/calendarView/delta?startDateTime=2026-06-01T00:00:00Z&endDateTime=2026-06-08T00:00:00Z"
     }
   }
 }
@@ -482,10 +500,11 @@ A successful response contains an object in the `structuredContent` property wit
 
 ##### Response
 
+The following illustrative payload shows an event in the requested time range. The delta token is abbreviated.
+
 ```json
 {
   "data": {
-    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('0c6bc4a2-337b-4672-9bcd-6aa53af1b02a')/calendarView(id,subject,start,end,location,organizer,isAllDay)",
     "value": [
       {
         "@odata.etag": "W/\"5bbkr6SNWESgxRt/IoUplgAAKcCTsQ==\"",
@@ -493,11 +512,11 @@ A successful response contains an object in the `structuredContent` property wit
         "subject": "Sales and Marketing Sync",
         "isAllDay": false,
         "start": {
-          "dateTime": "2026-06-08T12:30:00.0000000",
+          "dateTime": "2026-06-07T12:30:00.0000000",
           "timeZone": "UTC"
         },
         "end": {
-          "dateTime": "2026-06-08T13:00:00.0000000",
+          "dateTime": "2026-06-07T13:00:00.0000000",
           "timeZone": "UTC"
         },
         "location": {
@@ -514,7 +533,7 @@ A successful response contains an object in the `structuredContent` property wit
         }
       }
     ],
-    "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/calendarView?startdatetime=2026-06-01T17%3a51%3a49.607Z&enddatetime=2026-06-08T17%3a51%3a49.607Z&%24select=id%2csubject%2cstart%2cend%2clocation%2corganizer%2cisAllDay&%24top=10&%24skip=10"
+    "@odata.deltaLink": "https://graph.microsoft.com/v1.0/me/calendarView/delta?$deltatoken=opaque-token"
   },
   "statusCode": 200
 }
@@ -542,12 +561,15 @@ Asks Microsoft 365 Copilot (or a specific agent) a natural-language question abo
 
 #### Response
 
-A successful response contains a JSON string in the `text` property of a [TextContent](https://modelcontextprotocol.io/specification/latest/schema#textcontent) object. The string includes the following properties.
+A successful response returns the answer as plain text in an MCP `content` text block and as `structuredContent.answer`. The structured content includes the following properties.
 
 | Property         | Type   | Description                                                                                                       |
 |------------------|--------|-------------------------------------------------------------------------------------------------------------------|
-| `response`       | string | The response from Microsoft 365 Copilot or specified agent.                                                       |
-| `conversationId` | string | The conversation ID. Provide this ID in the `conversationId` of subsequent requests to continue the conversation. |
+| `answer` | string | The answer from Microsoft 365 Copilot or the specified agent. |
+| `conversationId` | string | The conversation ID, when available. Provide it in subsequent requests to continue the conversation. |
+| `application/vnd.ms-workiq.reference` | object | Citation references keyed by reference ID, when available. References can include target links and sensitivity metadata. |
+
+Errors use a different envelope: `isError` is `true`, and a `content` text block can contain JSON with an `error` field and, when available, a `conversationId`. Don't parse an error as an answer or expect `structuredContent.answer` to be present.
 
 #### Example
 
@@ -571,8 +593,31 @@ A successful response contains a JSON string in the `text` property of a [TextCo
 
 ```json
 {
-  "response": "You have **4 meetings scheduled today**. Here\\u2019s a clear view of your day:...",
-  "conversationId": "cc7d6f5202cb4c5b814b120440e48ede"
+  "isError": false,
+  "content": [
+    {
+      "type": "text",
+      "text": "You have **4 meetings scheduled today**."
+    }
+  ],
+  "structuredContent": {
+    "answer": "You have **4 meetings scheduled today**.",
+    "conversationId": "cc7d6f5202cb4c5b814b120440e48ede"
+  }
+}
+```
+
+For example, an empty question can produce this error tool result:
+
+```json
+{
+  "isError": true,
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"error\":\"Parameter 'question' is required.\"}"
+    }
+  ]
 }
 ```
 
@@ -606,7 +651,7 @@ A successful response contains a JSON string in the `text` property of a [TextCo
 {
   "method": "tools/call",
   "params": {
-    "name": "list_agent",
+    "name": "list_agents",
     "arguments": {}
   }
 }
@@ -626,6 +671,110 @@ A successful response contains a JSON string in the `text` property of a [TextCo
 
 ---
 
+## Retrieval tools
+
+Retrieval tools return source evidence for grounding an answer rather than a synthesized Copilot answer.
+
+### retrieve
+
+Searches Microsoft 365 and connected enterprise sources and returns read-only grounding evidence with source metadata. Use `retrieve` to gather evidence for your own answer, and `ask` to obtain a Copilot or agent answer.
+
+> [!NOTE]
+> Call `retrieve` only when it appears in your connection's MCP `tools/list` response. Availability and the input and output variants depend on the supported release and capabilities enabled for the caller.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string or string array | Yes | Nonempty natural-language search input. Use a single string when the advertised schema requires a string. Legacy schemas accept an array of queries. Use the shape advertised by your connection, not both interchangeably. |
+| `strategy` | string | No | `grounding` (default) searches indexed Microsoft 365 content. `copilot` includes federated connectors and other connected sources. Choose according to the sources needed; other values are rejected. |
+| `agentId` | string | No | The agent to target. Defaults to `bizchat-as-gpt-scenario`. |
+| `capabilities` | object array | No | Optional source-selection allow-list using declarative agent capability objects. Omit it or use an empty array to search all sources available to the selected agent. A nonempty list can't be combined with a non-default `agentId`. |
+| `includeDeveloperCard` | boolean | No | Request orchestration diagnostics. Defaults to `false`. |
+
+The supported capability names are `People`, `Meetings`, `OneDriveAndSharePoint`, `Email`, `TeamsMessages`, `Dataverse`, and `GraphConnectors`. Capability objects can include source-specific scope fields, such as SharePoint URLs, email folders, Teams message URLs, or connector connection IDs. Use the advertised schema for those fields. `Dataverse` and `GraphConnectors` require the `copilot` strategy; they aren't supported with `grounding`.
+
+#### Response
+
+The MCP result stores its retrieval payload in `structuredContent["application/vnd.ms-workiq.retrieval"]`. Depending on the output variant, the payload includes:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `markdown` | string | Grounding text with citation markers in the top-level-markdown variant. Match its `[^id]` markers to `retrievalHits[].id`. |
+| `retrievalHits` | object array | Source metadata for the top-level-markdown variant, including identifiers, URLs, and sensitivity information when available. |
+| `results` | object array | Per-source evidence in the structured-results variant. Ground on each `results[].markdown` value and use metadata from that same result for attribution. |
+| `resultCount` | integer | The result count reported by the retrieval response. |
+| `stoppedReason` | string | The terminal state: `completed`, `cancelled`, or `error`. |
+| `conversationId` | string | Conversation context, when returned by the enabled output variant. |
+
+The result can also include grounding text in MCP `content`; some output variants leave `content` empty. Read `structuredContent` rather than assume that evidence is always duplicated in text. Check `isError` and `stoppedReason` before treating results as complete. Errors can use a text-only JSON error envelope instead of the retrieval payload. Preserve source links, citation identifiers, content-protection decisions, and sensitivity metadata when passing evidence to another consumer.
+
+##### Content protection
+
+Each `retrievalHits[]` or `results[]` source can include a `contentProtection` string. Use source content only when its decision is recognized as allowing use by the supported response contract. Missing, failed, blocked, or unknown decisions aren't permission to use the content. Don't infer an allow decision from an unfamiliar value, a sensitivity label, `isError: false`, or `stoppedReason: "completed"`.
+
+For the top-level-markdown variant, correlate citation markers with their source hits before using the text. Don't use text from a source whose protection decision doesn't allow use. If you can't separate that text from the combined markdown, don't use the combined markdown. For the structured-results variant, apply the check to each source before using its `markdown`.
+
+#### Example
+
+##### Request
+
+This request uses the single-string query variant and restricts retrieval to indexed OneDrive and SharePoint content.
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "retrieve",
+    "arguments": {
+      "query": "Find the Project Atlas rollout plan",
+      "strategy": "grounding",
+      "capabilities": [
+        {
+          "name": "OneDriveAndSharePoint"
+        }
+      ]
+    }
+  }
+}
+```
+
+For a connection that advertises the legacy array variant, use `"query": ["Find the Project Atlas rollout plan"]` instead.
+
+##### Response
+
+The following illustrative tool result uses the top-level-markdown variant and shows a failed content-protection evaluation. The citation marker matches the source's `id`, but the client must not use this source or its associated markdown even though the tool completed successfully.
+
+```json
+{
+  "isError": false,
+  "content": [
+    {
+      "type": "text",
+      "text": "Project Atlas rollout plan [^h1]."
+    }
+  ],
+  "structuredContent": {
+    "application/vnd.ms-workiq.retrieval": {
+      "markdown": "Project Atlas rollout plan [^h1].",
+      "retrievalHits": [
+        {
+          "id": "h1",
+          "webUrl": "https://contoso.sharepoint.com/sites/Atlas/Shared%20Documents/Rollout.docx",
+          "contentProtection": "evaluationFailed"
+        }
+      ],
+      "resultCount": 1,
+      "stoppedReason": "completed"
+    }
+  }
+}
+```
+
+If a request returns no matching evidence, that doesn't establish that a document doesn't exist.
+
+---
+
 ## Schema tools
 
 Schema tools enable runtime discovery of available API paths and their OpenAPI schemas. These tools allow agents to discover what operations are available without loading large schema definitions into context upfront.
@@ -641,16 +790,16 @@ Retrieves the OpenAPI schema for a specific operation, identified by path and op
 
 | Parameter       | Type   | Required | Description                                                                                                                                                                               |
 |-----------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `operationIds`  | string | No       | The operation ID of the API to get the schema for (for example, `me.CreateMessages`). Use `operationIds` or `path`, not both.                                                             |
-| `path`          | string | No       | The API path to get the schema for (for example, `/me/messages`). Use `operationIds` or `path`, not both.                                                                                 |
-| `operationType` | string | Yes      | The operation type. Valid values are `fetch`, `create`, and `update`.                                                                                                                     |
-| `format`        | string | No       | The desired output format. Valid values are `jsonschema` ([JSON Schema](https://json-schema.org/) format) and `typescript` (TypeScript definitions). If omitted, JSON schema is returned. |
-| `backend`       | string | No       | Reserved for future use.                                                                                                                                                                  |
-| `agentId`       | string | No       | Reserved for future use.                                                                                                                                                                  |
+| `path` | string | No | The relative API path to get the schema for (for example, `/me/messages`). Supply a path and matching operation type to discover a specific operation. |
+| `operationType` | string | Yes | The operation type: `fetch`, `create`, `update`, or `action`. Some enabled audiences also advertise `function`; use it only when present in your connection's schema. |
+| `format` | string | No | `cddl` ([Concise Data Definition Language](https://www.rfc-editor.org/rfc/rfc8610)), `jsonschema` ([JSON Schema](https://json-schema.org/)), or `typescript` (TypeScript definitions). Defaults to `cddl`. |
+| `agentId` | string | No | Reserved for future use; currently ignored. |
+
+`operationIds` and `backend` aren't inputs in the current advertised contract. Use the parameter names exposed by MCP `tools/list`, not identifiers from older examples.
 
 #### Response
 
-A successful response contains the JSON schema or TypeScript definitions in the `text` property of a [TextContent](https://modelcontextprotocol.io/specification/latest/schema#textcontent) object.
+A successful response contains schema text in an MCP `content` text block. The format depends on `format`; omitting it returns CDDL rather than JSON Schema.
 
 #### Example
 
@@ -673,22 +822,17 @@ A successful response contains the JSON schema or TypeScript definitions in the 
 
 ##### Response
 
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "microsoft.graph.messageCollectionResponse",
-  "type": "object",
-  "properties": {
-    "value": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/microsoft.graph.message"
-      }
-    }
-  },
-  "$defs": {
-    ...
-  }
+The following excerpt shows CDDL returned in the text block. Additional definitions are omitted.
+
+```cddl
+microsoft-graph-messageCollectionResponse = {
+  BaseCollectionPaginationCountResponse,
+  ? "value": [* microsoft-graph-message]
+}
+
+BaseCollectionPaginationCountResponse = {
+  ? "@odata.count": (int / null),
+  ? "@odata.nextLink": (tstr / null)
 }
 ```
 
@@ -696,7 +840,9 @@ A successful response contains the JSON schema or TypeScript definitions in the 
 
 ### search_paths
 
-Searches available API paths by prefix or regex filter. Use this tool to discover which resource paths are available before calling other tools.
+Searches available API paths and supported operations. Use this tool to discover resource paths before calling entity tools.
+
+The advertised input contract is rollout-dependent. The legacy variant requires `filter`, a regex or path-keyword filter. The query variant requires `query`, a natural-language description or path prefix. Use the variant in your connection's MCP `tools/list` response. Legacy support hasn't been removed; don't assume that every connection accepts the query variant.
 
 > [!NOTE]
 > Currently, only Microsoft Graph v1.0 paths are available.
@@ -705,9 +851,10 @@ Searches available API paths by prefix or regex filter. Use this tool to discove
 
 | Parameter | Type   | Required | Description                                                                                            |
 |-----------|--------|----------|--------------------------------------------------------------------------------------------------------|
-| `filter`  | string | Yes      | A prefix or regex pattern to search for matching API paths (for example, `messages` or `.*calendar.*`) |
-| `backend` | string | No       | Reserved for future use.                                                                               |
-| `agentId` | string | No       | Reserved for future use.                                                                               |
+| `filter` | string | In the legacy variant | A regex or path-keyword filter (for example, `messages`, `messages\|reply`, or `/me/people`). |
+| `query` | string | In the query variant | A natural-language resource and operation description (for example, `recent emails` or `reply to email`), or a path prefix such as `/me/people`. |
+
+These rows describe alternative advertised schemas, not two required inputs for one request. Supply only the input advertised by your connection; don't send both. `backend` isn't an input in either current variant.
 
 #### Response
 
@@ -716,11 +863,13 @@ A successful response contains a `paths` property in the `structuredContent` fie
 | Property     | Type         | Description                                                                              |
 |--------------|--------------|------------------------------------------------------------------------------------------|
 | `path`       | string       | The relative API path.                                                                   |
-| `operations` | string array | The supported operations for the path. Valid values are `fetch`, `create`, and `update`. |
+| `operations` | string array | The supported operations for the path, such as `fetch`, `create`, `update`, `delete`, and `action`. Enabled audiences can also receive `function`. |
 
 #### Example
 
 ##### Request
+
+This example uses the legacy `filter` variant.
 
 [▶ Open this example in the Interactive Demo](https://aka.ms/copilot.dev?page=%2Fwork-iq%2Fmcp&server=workiq-remote&tool=search_paths&args=%7B%22filter%22%3A%22messages%22%7D)
 
@@ -736,27 +885,48 @@ A successful response contains a `paths` property in the `structuredContent` fie
 }
 ```
 
+For a connection that advertises `query`, use the following request instead:
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "search_paths",
+    "arguments": {
+      "query": "/me/messages"
+    }
+  }
+}
+```
+
 ##### Response
+
+The following excerpt shows paths returned for `/me/messages`. Other matching paths are omitted.
 
 ```json
 {
   "paths": [
     {
-      "path": "/admin/serviceAnnouncement/messages",
+      "path": "/me/messages",
       "operations": [
         "fetch",
         "create"
       ]
     },
     {
-      "path": "/admin/serviceAnnouncement/messages/{serviceUpdateMessage-id}",
+      "path": "/me/messages/{message-id}",
       "operations": [
         "fetch",
-        "create",
-        "update"
+        "update",
+        "delete"
       ]
     },
-    ...
+    {
+      "path": "/me/messages/{message-id}/send",
+      "operations": [
+        "action"
+      ]
+    }
   ]
 }
 ```
